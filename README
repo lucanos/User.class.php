@@ -1,0 +1,23 @@
+---User management class and demo
+---CREATED BY 'Poppins'----------
+
+License:
+	This may be used for any piece of work whether
+	commercial or person. Credit does not need be
+	given to the original author. The only condition
+	is that the script AND/OR demo is not released 
+	on its own and credit given to anybody but
+	the original author. The script/demo can also
+	not be sold on its own.
+Changelog -
+	VERSION a(.1)  - Basic user functionality
+	VERSION a(.2)  - Messaging functionality
+	VERSION a(.3)  - Smileys added to messages
+					 and user account management
+					 added. Now has the ability
+					 to delete messages.
+	VERSION a(.35) - BCrypt implemented. Passwords
+					 Are now ultra secure. SHA256
+					 functionality left in but will
+					 be depreciated in version a(.5)
+					 
