@@ -11,7 +11,7 @@
 */
 
 //Database creditentials (EDIT THESE)
-$dbHost     = 'mysql.lucanos.info';
+$dbHost     = 'localhost';
 $dbDatabase = 'user_class';
 $dbUsername = 'user_class_user';
 $dbPassword = 'user_class_password';
