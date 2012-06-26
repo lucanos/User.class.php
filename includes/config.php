@@ -11,13 +11,14 @@
 */
 
 //Database creditentials (EDIT THESE)
-$dbHost = "localhost";
-$dbDatabase = "users";
-$dbUsername = "root";
-$dbPassword = "root";
+$dbHost     = 'mysql.lucanos.info';
+$dbDatabase = 'user_class';
+$dbUsername = 'user_class_user';
+$dbPassword = 'user_class_password';
+
+$loginAttemptCount = 3;
+$loginAttemptTime  = strtotime( '-2 minutes' );
 
 //Database connect (Most of the time these can be kept the same)
-$dbCon = mysql_pconnect($dbHost, $dbUsername, $dbPassword) or die(mysql_error());
-mysql_select_db($dbDatabase, $dbCon);
-
-?>
+$dbCon = mysql_pconnect( $dbHost , $dbUsername , $dbPassword ) or die( mysql_error() );
+mysql_select_db( $dbDatabase , $dbCon );

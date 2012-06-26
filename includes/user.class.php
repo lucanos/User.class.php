@@ -1,10 +1,10 @@
 <?php
-include("config.php");
+
+include( 'config.php' );
 
 class User {
 	
-	function __construct(){  
-    }
+	function __construct(){}
 
 	function randomString($length) {
 		$s = ""; //Set the string as a blank one
@@ -19,56 +19,72 @@ class User {
 
 	function hash($password,$salt,$created_at) {
 		$lastTwo = substr($password, -2); //Adds last two letters of the password for extra security
-		$date = sha1(str_replace('-', '', strrev($created_at))); //Reverses the date and removes the dashes
+		$date = sha1( strrev( (string) $created_at ) ); //Reverses the date and removes the dashes
 		return crypt($salt . $lastTwo . $password . $date . $salt , '$2a$12$' . $salt); //Yay! Bcrypt
-		//return hash('sha256', $salt . $lastTwo . $password . $date . $salt); //UnComment to use SHA256 instead of bcrypt (Faster but a lot less secure)
 	}
-	
-	//$secondSalt = substr($username, -2);
-	
+
 	function salt() {
-		//$firstSalt = $this->randomString(6); //Again.. Uncomment and comment the line below for SHA256
 		$firstSalt = substr(str_replace('+', '.', base64_encode(sha1(microtime(true), true))), 0, 22);
 		return $firstSalt; //Return it
 	}
 	
 	function register($userName,$userPassword) {
-		if(!$this->exists($userName)) {
-			$salt = $this->salt(); //Generate a salt using the username provided
-			$date = date('Y-m-d');
-			$password = $this->hash($userPassword, $salt, $date); //Hash the password with the new salt
-		
-			//The query for inserting our new user into the DB
-			$q1 = "INSERT INTO users (username, password, rand, created_at) VALUES ('" . $userName . "', '" . $password . "', '" . $salt . "', '" .  $date . "')";
-			mysql_query($q1) or die(mysql_error()); //Run it. If it doesn't go through stop the script and display the error.
-			return true;
-		} else {
-			return false;
-		}
+		if( $this->exists( $userName ) )
+      return false;
+    $salt = $this->salt(); //Generate a salt using the username provided
+    $date = time();
+    $password = $this->hash($userPassword, $salt, $date); //Hash the password with the new salt
+  
+    //The query for inserting our new user into the DB
+    $q1 = "INSERT INTO users (username, password, rand, created_at) VALUES ('" . $userName . "', '" . $password . "', '" . $salt . "', '" .  $date . "')";
+    if( mysql_query( $q1 ) )
+      return true;
+    die( mysql_error() ); //Run it. If it doesn't go through stop the script and display the error.
+    return false;
 	}
+  
+  function update( $userName , $oldPassword , $newPassword ){
+		if( !$this->exists( $userName ) )
+      return false;
+    $r1 = mysql_fetch_array(mysql_query("SELECT password, rand, created_at FROM users WHERE username='" . $userName . "';"));
+    $oldHashDB = $this->hash( $r1['password'] , $r1['rand'] , $r1['created_at'] );
+    $oldHashIn = $this->hash( $oldPassword , $r1['rand'] , $r1['created_at'] );
+    if( $oldHashDB == $oldHashIn ){
+      $salt = $this->salt();
+      $newHash = $this->hash( $newPassword , $salt , $r1['created_at'] );
+      if( mysql_query("UPDATE users SET password='{$newHash}', rand='{$salt}' WHERE username='{$userName}';") ){
+        setLoggedIn( $userName , $newPassword );
+        return true;
+      }
+    }
+  }
 	
 	function verify($userName, $userPassword) {
 		//Grabbing all the user details with this query
-		$r1 = mysql_fetch_array(mysql_query("SELECT password, rand, created_at FROM users WHERE username='" . $userName . "';")); 
+		$r1 = mysql_fetch_array(mysql_query("SELECT password, rand, created_at FROM users WHERE username='" . $userName . "';"));
+    $ph = $this->hash($userPassword, $r1['rand'], $r1['created_at']);
 		return $r1['password'] == $this->hash($userPassword, $r1['rand'], $r1['created_at']); //Return whether it is true or false
 	}
+
 	function setLoggedIn($userName, $userPassword) {
 		//This function is self explanitory :)
-		$_SESSION['loggedIn'] = TRUE; 
+		$_SESSION['loggedIn'] = true; 
 		$_SESSION['userName'] = $userName;
 		$_SESSION['userPassword'] = $userPassword;
 	}
 	
 	function isLoggedIn() { 
-		if(isset($_SESSION['loggedIn'])) { //If the session variable is set (Prevents nasty warnings)
-			if($_SESSION['loggedIn'] && $this->verify($_SESSION['userName'], $_SESSION['userPassword'])) { //If it's true and the details work
-				return TRUE;
-			}
-		}
+		return ( isset( $_SESSION['loggedIn'] )
+             && $_SESSION['loggedIn']
+             && $this->verify( $_SESSION['userName'] , $_SESSION['userPassword'] ) );
 	}
 	
 	function redirectTo($page) { 
-		header( 'Location: ' . $page . '.php' ); //Just a simple redirector to save typing.
+		if( !headers_sent() ){
+      header( 'Location: ' . $page . '.php' );
+    }
+    echo '<a href="'.$page.'.php">Go to '.$page.'.php</a>';
+    die();
 	}
 	
 	function userInfo($userName) {
@@ -76,6 +92,7 @@ class User {
 			$r2 = mysql_fetch_array(mysql_query("SELECT * FROM users WHERE username='" . $userName . "';")); //Fetch the array
 			return $r2; //return it
 	}
+
 	function userInfoId($UID) {
 		//This function returns all user details to the front end. This is to save storing it all in sessions
 			$r2 = mysql_fetch_array(mysql_query("SELECT * FROM users WHERE id='" . $UID . "';")); //Fetch the array
@@ -154,8 +171,8 @@ class User {
 	}
 	
 	function sendMessage($to, $from, $subject, $message) {
-			mysql_query("INSERT INTO messages (message_to, message_from, message_subject, message, message_read) VALUES ('" . $to . "', '" . $from . "', '" . $subject . "', '" .  $message . "', '0')"); //Inserts it. Notice the message read is set to 0
-			return TRUE;
+    mysql_query("INSERT INTO messages (message_to, message_from, message_subject, message, message_read) VALUES ('" . $to . "', '" . $from . "', '" . $subject . "', '" .  $message . "', '0')"); //Inserts it. Notice the message read is set to 0
+    return TRUE;
 	}
 	
 	function deleteMessage($message_id) {
@@ -182,20 +199,16 @@ class User {
 	}
 	
 	function string_shorten($text, $char) {
-	    $text = substr($text, 0, $char); //First chop the string to the given character length
-	    if(substr($text, 0, strrpos($text, ' '))!='') $text = substr($text, 0, strrpos($text, ' ')); //If there exists any space just before the end of the chopped string take upto that portion only.
-	    //In this way we remove any incomplete word from the paragraph
-	    $text = $text.'...'; //Add continuation ... sign
-	    return $text; //Return the value
+    $text = substr($text, 0, $char); //First chop the string to the given character length
+    if(substr($text, 0, strrpos($text, ' '))!='') $text = substr($text, 0, strrpos($text, ' ')); //If there exists any space just before the end of the chopped string take upto that portion only.
+    //In this way we remove any incomplete word from the paragraph
+    $text = $text.'...'; //Add continuation ... sign
+    return $text; //Return the value
 	}
 	
 	function checkLevel($i) {
-	   $levels = array("Normal", "Moderator", "Admin");
-	   return $levels[$i];
+    $levels = array("Normal", "Moderator", "Admin");
+    return $levels[$i];
 	}
-	
-	
+
 }
-
-
-?>
