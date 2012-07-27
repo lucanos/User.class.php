@@ -6,64 +6,87 @@ class User {
 	
 	function __construct(){}
 
-	function randomString($length) {
-		$s = ""; //Set the string as a blank one
-		$letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"; //Possible letters to arise
+	function randomString( $len=32 ){
+    // Initialise a string
+		$s = '';
+    // Possible characters
+		$letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
-		for($i=0;$i < $length;$i++) {
-			$char = $letters[mt_rand(0, strlen($letters)-1)]; //Grab a random letter for $letters
+		for( $i=0 ; $i<$len ; $i++ ){
+      // Grab a random letter for $letters
+			$char = $letters[mt_rand( 0 , strlen( $letters )-1 )];
 			$s .= $char; //Add it to the string
 		}
 		return $s;
 	}
 
-	function hash($password,$salt,$created_at) {
-		$lastTwo = substr($password, -2); //Adds last two letters of the password for extra security
-		$date = sha1( strrev( (string) $created_at ) ); //Reverses the date and removes the dashes
-		return crypt($salt . $lastTwo . $password . $date . $salt , '$2a$12$' . $salt); //Yay! Bcrypt
+	function hash( $password , $salt , $created_at ){
+		// Adds last two letters of the password for extra security
+    $lastTwo = substr( $password , -2 );
+    // Reverses the date and removes the dashes
+		$date = sha1( strrev( (string) $created_at ) );
+    // Yay! Bcrypt
+		return crypt($salt . $lastTwo . $password . $date . $salt , '$2a$12$' . $salt);
 	}
 
-	function salt() {
-		$firstSalt = substr(str_replace('+', '.', base64_encode(sha1(microtime(true), true))), 0, 22);
-		return $firstSalt; //Return it
+	function salt(){
+		$firstSalt = substr( str_replace( '+' , '.' , base64_encode( sha1( microtime( true ) , true ) ) ) , 0 , 22 );
+		return $firstSalt;
 	}
 	
-	function register($userName,$userPassword) {
+	function register( $userName , $userPassword ){
 		if( $this->exists( $userName ) )
       return false;
     $salt = $this->salt(); //Generate a salt using the username provided
     $date = time();
-    $password = $this->hash($userPassword, $salt, $date); //Hash the password with the new salt
-  
+    $password = $this->hash( $userPassword , $salt , $date ); //Hash the password with the new salt
+
     //The query for inserting our new user into the DB
-    $q1 = "INSERT INTO users (username, password, rand, created_at) VALUES ('" . $userName . "', '" . $password . "', '" . $salt . "', '" .  $date . "')";
+    $q1 = sprintf( "INSERT INTO users (username, password, rand, created_at) VALUES ('%s', '%s', '%s', '%s')" ,
+            mysql_real_escape_string( $userName ) ,
+            mysql_real_escape_string( $password ) ,
+            mysql_real_escape_string( $salt ) ,
+            mysql_real_escape_string( $date )
+          );
     if( mysql_query( $q1 ) )
       return true;
-    die( mysql_error() ); //Run it. If it doesn't go through stop the script and display the error.
+    die( mysql_error() ); // Run it. If it doesn't go through stop the script and display the error.
     return false;
 	}
   
   function update( $userName , $oldPassword , $newPassword ){
 		if( !$this->exists( $userName ) )
       return false;
-    $r1 = mysql_fetch_array(mysql_query("SELECT password, rand, created_at FROM users WHERE username='" . $userName . "';"));
+    $q1 = sprintf( "SELECT password, rand, created_at FROM users WHERE username='%s'" ,
+            mysql_real_escape_string( $userName )
+          );
+    $r1 = mysql_fetch_array( mysql_query( $q1 ) );
     $oldHashDB = $this->hash( $r1['password'] , $r1['rand'] , $r1['created_at'] );
     $oldHashIn = $this->hash( $oldPassword , $r1['rand'] , $r1['created_at'] );
     if( $oldHashDB == $oldHashIn ){
       $salt = $this->salt();
       $newHash = $this->hash( $newPassword , $salt , $r1['created_at'] );
-      if( mysql_query("UPDATE users SET password='{$newHash}', rand='{$salt}' WHERE username='{$userName}';") ){
+      $q2 = sprintf( "UPDATE users SET password='%s', rand='%s' WHERE username='%s'" ,
+              mysql_real_escape_string( $newHash ) ,
+              mysql_real_escape_string( $salt ) ,
+              mysql_real_escape_string( $userName )
+            );
+      if( mysql_query( $q2 ) ){
         setLoggedIn( $userName , $newPassword );
         return true;
       }
     }
   }
 	
-	function verify($userName, $userPassword) {
-		//Grabbing all the user details with this query
-		$r1 = mysql_fetch_array(mysql_query("SELECT password, rand, created_at FROM users WHERE username='" . $userName . "';"));
-    $ph = $this->hash($userPassword, $r1['rand'], $r1['created_at']);
-		return $r1['password'] == $this->hash($userPassword, $r1['rand'], $r1['created_at']); //Return whether it is true or false
+	function verify( $userName , $userPassword ){
+		// Grabbing all the user details with this query
+    $q1 = sprintf( "SELECT password, rand, created_at FROM users WHERE username='%s'" ,
+            mysql_real_escape_string( $userName )
+          );
+		$r1 = mysql_fetch_array( mysql_query( $q1 ) );
+    $ph = $this->hash( $userPassword , $r1['rand'] , $r1['created_at'] );
+    // Return whether it is true or false
+		return ( $r1['password'] == $this->hash( $userPassword , $r1['rand'] , $r1['created_at'] ) );
 	}
 
 	function setLoggedIn($userName, $userPassword) {
@@ -83,131 +106,146 @@ class User {
 		if( !headers_sent() ){
       header( 'Location: ' . $page . '.php' );
     }
-    echo '<a href="'.$page.'.php">Go to '.$page.'.php</a>';
-    die();
+    die( '<a href="'.$page.'.php">Go to '.$page.'.php</a>' );
 	}
 	
-	function userInfo($userName) {
-		//This function returns all user details to the front end. This is to save storing it all in sessions
-			$r2 = mysql_fetch_array(mysql_query("SELECT * FROM users WHERE username='" . $userName . "';")); //Fetch the array
-			return $r2; //return it
+	function userInfo( $userName ){
+		// This function returns all user details to the front end. This is to save storing it all in sessions
+    $q1 = sprintf( "SELECT * FROM users WHERE username='%s'" ,
+            mysql_real_escape_string( $userName )
+          );
+    // Fetch and Return the array
+    return mysql_fetch_array( mysql_query( $q1 ) );
 	}
 
-	function userInfoId($UID) {
-		//This function returns all user details to the front end. This is to save storing it all in sessions
-			$r2 = mysql_fetch_array(mysql_query("SELECT * FROM users WHERE id='" . $UID . "';")); //Fetch the array
-			return $r2; //return it
+	function userInfoId( $UID ){
+		// This function returns all user details to the front end. This is to save storing it all in sessions
+    $q1 = sprintf( "SELECT * FROM users WHERE id=%s" ,
+            (int) $UID
+          );
+    // Fetch and Return the array
+    return mysql_fetch_array( mysql_query( $q1 ) );
 	}
 	
-	function logOut() {
-		if(isset($_SESSION['loggedIn'])) { //If they are logged in
-			unset($_SESSION['loggedIn'], $_SESSION['userName'], $_SESSION['userPassword']); //Unset the session variables
-			$this->redirectTo('login'); //Redirect to the login page
+	function logOut(){
+    // If they are logged in
+		if( isset( $_SESSION['loggedIn'] ) ){
+      // Unset the session variables
+			unset( $_SESSION['loggedIn'] , $_SESSION['userName'] , $_SESSION['userPassword'] );
+			// Redirect to the login page
+      $this->redirectTo( 'login' );
 		}
 	}
 	
-	function exists($username) {
-		//Checks a user exists (for the register page)
-		if(mysql_num_rows(mysql_query("SELECT username FROM users WHERE username = '$username'"))){
-			return TRUE;
-		}
+	function exists( $userName ){
+		// Checks a user exists (for the register page)
+    $q1 = sprintf( "SELECT username FROM users WHERE username = '%s'" ,
+            mysql_real_escape_string( $userName )
+          );
+		return (bool) mysql_num_rows( mysql_query( $q1 ) );
 	}
 	
-	function search($field, $term) {
-		switch ($field) {
-		    case 'id':
-		        $results = mysql_query("SELECT * from users WHERE id LIKE '%$term%';");
-				if(mysql_num_rows($results)) {
-					return $results;
-				} else {
-					return FALSE;
-				}
-		    case 'username':
-		        $results = mysql_query("SELECT * from users WHERE username LIKE '%$term%';");
-				if(mysql_num_rows($results)) {
-					return $results;
-				} else {
-					return FALSE;
-				}
-		        break;
-		}
-		
-	}
-	
-	function messageNotification($UID) {
-		$unread = mysql_query("SELECT * FROM messages WHERE message_to = '$UID' AND message_read = '0'"); //Select all unread notifications
-		if(mysql_num_rows($unread)) { //If they exist
-			return mysql_num_rows($unread); //Return the number of them that exist
-		} else {
-			return FALSE;
-		}
-	}
-	
-	function displayMessages($action, $UID, $ID = NULL) {
-		switch ($action) {
-		case 'list':
-			$messages = mysql_query("SELECT * FROM messages INNER JOIN users ON messages.message_from=users.id WHERE messages.message_to = '$UID' ORDER BY messages.message_id DESC"); //Select all messages to UID BUT also select the user it's from
-			if(mysql_num_rows($messages)) { //If any messages exist
-				return $messages; //Return them (Not in an array.)
-			} else {
-				return FALSE;
-			}
-			break;
-		case 'read':
-			$messages = mysql_query("SELECT * FROM messages INNER JOIN users ON messages.message_from=users.id WHERE messages.message_id = '$ID'");
-			if(mysql_num_rows($messages)) { //Again the same as the one above but without the ORDER BY DESC clause
-				return $messages; //Return them
-			} else {
-				return FALSE;
-			}
-	}}
-	
-	function setMessageRead($messageID) {
-		mysql_query("UPDATE messages SET message_read = 1 WHERE message_id = '$messageID'"); //Just a simple 'set read' clause
-	}
-	
-	function setMessageUnread($messageID) {
-		mysql_query("UPDATE messages SET message_read = 0 WHERE message_id = '$messageID'"); //Just a simple 'set read' clause
-	}
-	
-	function sendMessage($to, $from, $subject, $message) {
-    mysql_query("INSERT INTO messages (message_to, message_from, message_subject, message, message_read) VALUES ('" . $to . "', '" . $from . "', '" . $subject . "', '" .  $message . "', '0')"); //Inserts it. Notice the message read is set to 0
-    return TRUE;
-	}
-	
-	function deleteMessage($message_id) {
-		return mysql_query("DELETE FROM messages WHERE message_id = '$message_id'"); //Simple
-	}
-	
-	function smiley($string) { //This is our smileys!
-			$smileys = array(
-						'0:)' => '<img src="images/angel.png" />', //It looks like this: 'SHORTCODE' => 'HTML'
-						':S' => '<img src="images/awww.png" />', //So type :S and this'll replace it with <img src="images/awww.png" />
-						':|' => '<img src="images/disheartened.png" />',
-						'x)' => '<img src="images/ecstatic.png" />',
-						':D' => '<img src="images/great.png" />',
-						':P' => '<img src="images/just-like-that.png" />',
-						':@' => '<img src="images/kill-u.png" />',
-						':x' => '<img src="images/mouthshut.png" />',
-						':)' => '<img src="images/nice.png" />',
-						'D:' => '<img src="images/omg.png" />',
-						':(' => '<img src="images/sad.png" />',
-						';)' => '<img src="images/wink.png" />',
+	function search( $field , $term ){
+    $sql_field = false;
 
-						);
-			return(strtr($string, $smileys)); //Return the changed string
+		switch( $field ){
+      case 'id' :
+        $sql_field = 'id';
+        break;
+      case 'username' :
+        $sql_field = 'username';
+        break;
+    }
+    if( !$sql_field )
+      return false;
+    $q1 = sprintf( "SELECT * from users WHERE %s LIKE '%%%s%%'" ,
+            mysql_real_escape_string( $term )
+          );
+    $r1 = mysql_query( $q1 );
+    if( !mysql_num_rows( $r1 ) )
+      return false;
+    return $r1;
 	}
 	
-	function string_shorten($text, $char) {
-    $text = substr($text, 0, $char); //First chop the string to the given character length
-    if(substr($text, 0, strrpos($text, ' '))!='') $text = substr($text, 0, strrpos($text, ' ')); //If there exists any space just before the end of the chopped string take upto that portion only.
-    //In this way we remove any incomplete word from the paragraph
-    $text = $text.'...'; //Add continuation ... sign
-    return $text; //Return the value
+	function messageNotification( $UID ){
+    // Select all unread notifications
+    $q1 = sprintf( "SELECT * FROM messages WHERE message_to = '%s' AND message_read = '0'" ,
+            (int) $UID
+          );
+    $r1 = mysql_query( $q1 );
+    // Return the number
+    return mysql_num_rows( $r1 );
 	}
 	
-	function checkLevel($i) {
-    $levels = array("Normal", "Moderator", "Admin");
+	function displayMessages( $action , $UID , $ID=NULL ){
+    $where = false;
+
+		switch( $action ){
+      case 'list' :
+        $where = sprintf( "messages.message_to = %s ORDER BY messages.message_id DESC" ,
+                   (int) $UID
+                 );
+        break;
+      case 'read' :
+        $where = sprintf( "messages.message_id = %s" ,
+                   (int) $ID
+                 );
+    }
+    if( !$where )
+      return null;
+    $q = sprintf( "SELECT * FROM messages INNER JOIN users ON messages.message_from=users.id WHERE %s" ,
+           $where
+         );
+    $r = mysql_query( $q );
+    if( !mysql_num_rows( $r ) )
+      return false;
+    return $r;
+  }
+	
+	function setMessageStatus( $messageID , $status ){
+    $q = sprintf( "UPDATE messages SET message_read = %s WHERE message_id = %s" ,
+            (int) $status ,
+            (int) $messageID
+         );
+		mysql_query( $q );
+	}
+
+	function setMessageUnread( $messageID ){
+		setMessageStatus( $messageID , 0 );
+	}
+	function setMessageRead( $messageID ){
+		setMessageStatus( $messageID , 1 );
+	}
+
+	function sendMessage( $to , $from , $subject , $message ){
+    $q = sprintf( "INSERT INTO messages (message_to, message_from, message_subject, message, message_read) VALUES ('%s', '%s', '%s', '%s', 0)" ,
+           mysql_real_escape_string( $to ) ,
+           mysql_real_escape_string( $from ) ,
+           mysql_real_escape_string( $subject ) ,
+           mysql_real_escape_string( $message )
+           
+         );
+    return mysql_query( $q ); //Inserts it. Notice the message read is set to 0
+	}
+	
+	function deleteMessage( $messageID ){
+    $q = sprintf( "DELETE FROM messages WHERE message_id = '%s'" ,
+           (int) $messageID
+         );
+		return mysql_query( $q );
+	}
+	
+	function string_shorten( $text , $len ){
+    // Strip any linebreaks or multiple-spaces
+    $text = preg_replace( array( "/\n|\r/" , '\s\s+' ) , ' ' , $text );
+    // Split the text using the wordwrap() function
+    $lines = explode( "\n" , wordwrap( $text , $len ) );
+    // Get the First Line and add continuation ... sign
+    return $lines[0].'...'; //Return the value
+	}
+	
+	function checkLevel( $i ){
+    $levels = array( 'Normal' , 'Moderator' , 'Admin' );
     return $levels[$i];
 	}
 
