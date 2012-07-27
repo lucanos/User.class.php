@@ -48,7 +48,7 @@ class User {
             mysql_real_escape_string( $date )
           );
     if( mysql_query( $q1 ) )
-      return true;
+      return mysql_insert_id();
     die( mysql_error() ); // Run it. If it doesn't go through stop the script and display the error.
     return false;
   }
