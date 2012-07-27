@@ -3,7 +3,7 @@
 include( 'config.php' );
 
 class User {
-  
+
   function __construct(){}
 
   function randomString( $len=32 ){
@@ -33,10 +33,11 @@ class User {
     $firstSalt = substr( str_replace( '+' , '.' , base64_encode( sha1( microtime( true ) , true ) ) ) , 0 , 22 );
     return $firstSalt;
   }
-  
+
   function register( $userName , $userPassword ){
     if( $this->exists( $userName ) )
       return false;
+
     $salt = $this->salt(); //Generate a salt using the username provided
     $date = time();
     $password = $this->hash( $userPassword , $salt , $date ); //Hash the password with the new salt
@@ -53,7 +54,7 @@ class User {
     die( mysql_error() ); // Run it. If it doesn't go through stop the script and display the error.
     return false;
   }
-  
+
   function update( $userName , $oldPassword , $newPassword ){
     if( !$this->exists( $userName ) )
       return false;
@@ -77,7 +78,7 @@ class User {
       }
     }
   }
-  
+
   function verify( $userName , $userPassword ){
     // Grabbing all the user details with this query
     $q1 = sprintf( "SELECT password, rand, created_at FROM users WHERE username='%s'" ,
@@ -91,24 +92,24 @@ class User {
 
   function setLoggedIn($userName, $userPassword) {
     //This function is self explanitory :)
-    $_SESSION['loggedIn'] = true; 
+    $_SESSION['loggedIn'] = true;
     $_SESSION['userName'] = $userName;
     $_SESSION['userPassword'] = $userPassword;
   }
-  
-  function isLoggedIn() { 
+
+  function isLoggedIn() {
     return ( isset( $_SESSION['loggedIn'] )
              && $_SESSION['loggedIn']
              && $this->verify( $_SESSION['userName'] , $_SESSION['userPassword'] ) );
   }
-  
-  function redirectTo($page) { 
+
+  function redirectTo($page) {
     if( !headers_sent() ){
       header( 'Location: ' . $page . '.php' );
     }
     die( '<a href="'.$page.'.php">Go to '.$page.'.php</a>' );
   }
-  
+
   function userInfo( $userName ){
     // This function returns all user details to the front end. This is to save storing it all in sessions
     $q1 = sprintf( "SELECT * FROM users WHERE username='%s'" ,
@@ -126,7 +127,7 @@ class User {
     // Fetch and Return the array
     return mysql_fetch_array( mysql_query( $q1 ) );
   }
-  
+
   function logOut(){
     // If they are logged in
     if( isset( $_SESSION['loggedIn'] ) ){
@@ -136,7 +137,7 @@ class User {
       $this->redirectTo( 'login' );
     }
   }
-  
+
   function exists( $userName ){
     // Checks a user exists (for the register page)
     $q1 = sprintf( "SELECT username FROM users WHERE username = '%s'" ,
@@ -144,7 +145,7 @@ class User {
           );
     return (bool) mysql_num_rows( mysql_query( $q1 ) );
   }
-  
+
   function search( $field , $term ){
     $sql_field = false;
 
@@ -166,7 +167,7 @@ class User {
       return false;
     return $r1;
   }
-  
+
   function messageNotification( $UID ){
     // Select all unread notifications
     $q1 = sprintf( "SELECT * FROM messages WHERE message_to = '%s' AND message_read = '0'" ,
@@ -176,7 +177,7 @@ class User {
     // Return the number
     return mysql_num_rows( $r1 );
   }
-  
+
   function displayMessages( $action , $UID , $ID=NULL ){
     $where = false;
 
@@ -201,7 +202,7 @@ class User {
       return false;
     return $r;
   }
-  
+
   function setMessageStatus( $messageID , $status ){
     $q = sprintf( "UPDATE messages SET message_read = %s WHERE message_id = %s" ,
             (int) $status ,
@@ -223,18 +224,18 @@ class User {
            mysql_real_escape_string( $from ) ,
            mysql_real_escape_string( $subject ) ,
            mysql_real_escape_string( $message )
-           
+
          );
-    return mysql_query( $q ); //Inserts it. Notice the message read is set to 0
+    return mysql_query( $q );
   }
-  
+
   function deleteMessage( $messageID ){
     $q = sprintf( "DELETE FROM messages WHERE message_id = '%s'" ,
            (int) $messageID
          );
     return mysql_query( $q );
   }
-  
+
   function string_shorten( $text , $len ){
     // Strip any linebreaks or multiple-spaces
     $text = preg_replace( array( "/\n|\r/" , '\s\s+' ) , ' ' , $text );
@@ -243,7 +244,7 @@ class User {
     // Get the First Line and add continuation ... sign
     return $lines[0].'...'; //Return the value
   }
-  
+
   function checkLevel( $i ){
     $levels = array( 'Normal' , 'Moderator' , 'Admin' );
     return $levels[$i];
