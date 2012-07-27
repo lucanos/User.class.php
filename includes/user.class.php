@@ -21,12 +21,10 @@ class User {
   }
 
   function hash( $password , $salt , $created_at ){
-    // Adds last two letters of the password for extra security
-    $lastTwo = substr( $password , -2 );
     // Reverses the date and removes the dashes
     $date = sha1( strrev( (string) $created_at ) );
     // Yay! Bcrypt
-    return crypt($salt . $lastTwo . $password . $date . $salt , '$2a$12$' . $salt);
+    return crypt($salt . $password . $date . $salt , '$2a$12$' . $salt);
   }
 
   function salt(){
